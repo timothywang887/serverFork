@@ -10,7 +10,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 	char * ww = "WIZARDWEED";
 	if(memcmp(ww, &(pmsg->wizardweed_notchecksum), 10)) return PR_GARBAGE; //Someone, non-client, is sending us garbage.
 	if(pmsg->message_len != packet_length) return PR_PARTRECV;
-	data = data-sizeof(struct Protocol_Msg);
+	data = data+sizeof(struct Protocol_Msg);
 	if((pmsg->rqrspandpvr&0b111)!=PROTOCOL_VERSION) return PR_PROTOMISMATCH; 
 	printf("1 ? protocol message passed.\n");
 	switch(pmsg->type){

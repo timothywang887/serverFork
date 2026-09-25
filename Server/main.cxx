@@ -44,24 +44,16 @@ void Server::GNS_PollIncoming(){
 		printf("we got something");
 		assert(n_msgs==1 && incoming_msg); 
 		printf("recv: %s\n", incoming_msg->m_pData);
-		PH.handleCMSG((char*)(incoming_msg->m_pData), incoming_msg->m_cbSize, Sessions.findUserSessionByConnection(incoming_msg->m_conn));
+		enum PARSING_RESULT res = PH.handleCMSG((char*)(incoming_msg->m_pData), incoming_msg->m_cbSize, Sessions.findUserSessionByConnection(incoming_msg->m_conn));
+		if(res != PR_SUCCESSFUL){
+			printf("the client fucking SUCKS and can go kick rocks!!! %i\n", res); //TODO: kick client US
+			m_pInterface->CloseConnection(incoming_msg->m_conn, 0, "death upon thy nine connections", false);
+		}
 		incoming_msg->Release();
 	}
 }
 void Server::GNS_SteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t * change){
 	//From docs: new connection, connection accepted by remote (will not happen), connection closed by remote, problem with connection (localhost closed)
-	printf("change!!!\n");
-	printf("start hexdump\n");
-	for(long i = 0; i<sizeof(SteamNetConnectionStatusChangedCallback_t); i++){
-		printf("%X", ((uint8_t*)(change))[i]);
-	}
-			printf("\ntheir ip btw is \n");
-//			char * k = (char*)calloc(1,60);
-//change.m_info.m_addrRemote.ToString(k, 60, 0);
-//printf("%s\n",k);
-	
-//printf("is ipv4 is %i \n", change.m_info.m_addrRemote.IsIPv4());
-//	printf("os %i\n", change.m_eOldState);
 	switch(change->m_info.m_eState){
 		case k_ESteamNetworkingConnectionState_None:
 		case k_ESteamNetworkingConnectionState_Connected:
@@ -92,19 +84,6 @@ void Server::GNS_SteamNetConnectionStatusChanged(SteamNetConnectionStatusChanged
 		case k_ESteamNetworkingConnectionState_FindingRoute:
 			printf("we should NOT be using the relay network\n");
 			assert(false);
-			break;
-		case -1:
-
-			printf("fws maybe\n");
-			break;
-		case 32767:
-			printf("this is the fin wait state so we have disconnected on our side?\n");
-			break;
-		case 32766:
-			printf("linger\n");
-			break;
-		case 32765:
-			printf("connection DEAD\n");
 			break;
 		default:
 			printf("Unknown change %i\n", change->m_info.m_eState);

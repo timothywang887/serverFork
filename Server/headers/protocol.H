@@ -29,7 +29,7 @@ enum MESSAGE_TYPE{
         SC_HSYNCRQ,
         SC_TOKENRSP,
 };
-struct Protocol_Msg{
+struct __attribute__((packed)) Protocol_Msg{
         char wizardweed_notchecksum[10];
         uint16_t rqrspandpvr; //0b0 rq/rsp followed by 0b000 proto ver.
         uint32_t message_len;
