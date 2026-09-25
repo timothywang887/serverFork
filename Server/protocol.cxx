@@ -42,7 +42,7 @@ void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t
 	pmsg.message_id_or_response_to=current_message_id++;
 	char * d = (char*)(malloc(pmsg.message_len));
 	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
-	memcpy(d+sizeof(struct Protocol_Msg), data, message_len);
+	memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
 	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
 	free(d);
 }
@@ -57,7 +57,7 @@ void ProtocolHandler::sendCRS(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t
 	pmsg.message_id_or_response_to=response_to;
 	char * d = (char*)malloc(pmsg.message_len);
 	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
-	memcpy(d+sizeof(struct Protocol_Msg), data, message_len);
+	memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
 	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
 	free(d);
 
