@@ -37,12 +37,12 @@ void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t
 	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION | 0b1000;
-	memcpy(sctoken, pmsg.tokening, sizeof(ENCVAL_TEMP));
+	memcpy(pmsg.tokening,sctoken, sizeof(ENCVAL_TEMP));
 	pmsg.type = t;
 	pmsg.message_id_or_response_to=current_message_id++;
 	char * d = (char*)(malloc(pmsg.message_len));
-	memcpy(&pmsg, d, sizeof(struct Protocol_Msg));
-	memcpy(data, d+sizeof(struct Protocol_Msg), message_len);
+	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
+	memcpy(d+sizeof(struct Protocol_Msg), data, message_len);
 	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
 	free(d);
 }
@@ -52,12 +52,12 @@ void ProtocolHandler::sendCRS(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t
 	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION & 0b111;
-	memcpy(sctoken, pmsg.tokening, sizeof(ENCVAL_TEMP));
+	memcpy(pmsg.tokening,sctoken, sizeof(ENCVAL_TEMP));
 	pmsg.type = t;
 	pmsg.message_id_or_response_to=response_to;
 	char * d = (char*)malloc(pmsg.message_len);
-	memcpy(&pmsg, d, sizeof(struct Protocol_Msg));
-	memcpy(data, d+sizeof(struct Protocol_Msg), message_len);
+	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
+	memcpy(d+sizeof(struct Protocol_Msg), data, message_len);
 	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
 	free(d);
 
