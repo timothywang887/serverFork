@@ -34,7 +34,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, char * data, UserSession * ses_assoc){
 	struct Protocol_Msg pmsg;
 	char * ww = "WIZARDWEED";
-	memcpy(ww,pmsg.wizardweed_notchecksum,10);
+	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION | 0b1000;
 	memcpy(sctoken, pmsg.tokening, sizeof(ENCVAL_TEMP));
@@ -49,7 +49,7 @@ void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t
 void ProtocolHandler::sendCRS(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, uint64_t response_to, char * data, UserSession * ses_assoc){
 	struct Protocol_Msg pmsg;
 	char * ww = "WIZARDWEED";
-	memcpy(ww,pmsg.wizardweed_notchecksum,10);
+	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION & 0b111;
 	memcpy(sctoken, pmsg.tokening, sizeof(ENCVAL_TEMP));
