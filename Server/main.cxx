@@ -44,6 +44,10 @@ void Server::GNS_PollIncoming(){
 		printf("we got something");
 		assert(n_msgs==1 && incoming_msg); 
 		printf("recv: %s\n", incoming_msg->m_pData);
+		FILE * k = fopen("log.bin", "w");
+		fwrite(incoming_msg->m_pData, incoming_msg->m_cbSize,1,k);
+		fclose(k);
+		printf("written to log.bin");
 		enum PARSING_RESULT res = PH.handleCMSG((char*)(incoming_msg->m_pData), incoming_msg->m_cbSize, Sessions.findUserSessionByConnection(incoming_msg->m_conn));
 		if(res != PR_SUCCESSFUL){
 			printf("the client fucking SUCKS and can go kick rocks!!! %i\n", res); //TODO: kick client US
@@ -57,7 +61,7 @@ void Server::GNS_SteamNetConnectionStatusChanged(SteamNetConnectionStatusChanged
 	switch(change->m_info.m_eState){
 		case k_ESteamNetworkingConnectionState_None:
 		case k_ESteamNetworkingConnectionState_Connected:
-			printf("ch n or c\n");
+			printf("ch none or connected\n");
 			break;
 		case k_ESteamNetworkingConnectionState_ClosedByPeer:
 		case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:

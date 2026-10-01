@@ -1,9 +1,29 @@
 #include "headers/protocol.H"
 #include <stdio.h>
-bool verifyToken(ENCVAL_TEMP token, UserSession * ses_assoc){
+bool verifyToken(ENCVAL_TEMP token, UserSession * ses_assoc){ //TODO
 	return true;
-}//TODO
+}
+/*char * unencryptSPK(const char * const data, uint32_t data_length){ //TODO
+	char * d2 = (char*)malloc(data_length);
+	memcpy(d2, data, data_length);
+	return d2;
+}
+char * encryptSymmetric(const char * const data, uint32_t data_length, ENCVAL_SYMMETRIC_TEMP key, uint32_t * lenres){ //TODO
+	char * d2 =(char*) malloc(data_length);
+	memcpy(d2, data, data_length);
+	*lenres = data_length;
+	return d2;
+}
+
+struct __attribute__((packed)) Protocol_Msg_AuthRQ{
+	C_SEMIPERMA spt;
+	ENCVAL_SYMMETRIC_TEMP sk;
+};
+struct __attribute__((packed)) Protocol_Msg_SC_TOKENRSP{
+	C_SESSIONTOK st;
+};*/
 enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_length, UserSession * ses_assoc){
+	printf("%li\n", sizeof(struct Protocol_Msg));
 	if(!data) return PR_GARBAGE_OURFAULT;
 	if(packet_length < sizeof(struct Protocol_Msg)) return PR_GARBAGE;
 	struct Protocol_Msg * pmsg = (struct Protocol_Msg*) data;
@@ -15,8 +35,30 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 	printf("1 ? protocol message passed.\n");
 	switch(pmsg->type){
 		case CS_AUTHRQ:
-		case CS_LOGINRQ:
 			//No token required. Handle login.
+			//<Data> is (for authrq) a semipermanent token concatenated with a temporary symmetric key and encrypted with server pubkey - response is therefore a session token encrypted with that symmetric key.
+		/*	char * decrypted = unencryptSPK(data, pmsg->message_len-sizeof(struct Protocol_Msg));
+			if(pmsg->message_len-sizeof(struct Protocol_Msg) != sizeof(struct Protocol_Msg_AuthRQ)) return PR_ILLOGICAL;
+			struct Protocol_Msg_AuthRQ * rq = (struct Protocol_Msg_AuthRQ*)decrypted;
+			if(validateSemiperma(rq->spt)){
+				//Their semiperma is still valid. Give them a session token.
+				struct Protocol_Msg_SC_TOKENRSP k;
+				k.st = getTokenFromSemiperma(rq->spt);
+				uint32_t encrypted_length = 0;
+				char * encrypted = encryptSymmetric(k, sizeof(struct Protocol_Msg_SC_TOKENRSP), rq->sk, &encrypted_length);
+				sendCRS(SC_TOKENRSP, getValidServerToken(), encrypted_length, pmsg->message_id_or_response_to, encrypted, ses_assoc);
+				free(encrypted);
+				free(decrypted);
+				return PR_SUCCESSFUL;
+			}else{
+				//Send them to the login screen.
+				
+			}
+			free(decrypted);*/
+			break;
+		case CS_LOGINRQ:
+			//<Data> is (for loginrq) (char[128] USERNAME, char[128]PASSWORD) concatenated with a temporary symmetric key and encrypted with server pubkey - response is the same as above but also including a semipermanent token.
+			break;
 		default:
 			User u = ses_assoc->session_user;
 			if(!u.user_id) return PR_ILLOGICAL; //Auth required first!
