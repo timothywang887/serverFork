@@ -25,7 +25,7 @@ struct __attribute__((packed)) Protocol_Msg_SC_TOKENRSP{
 enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_length, UserSession * ses_assoc){
 	printf("%li\n", sizeof(struct Protocol_Msg));
 	if(!data) return PR_GARBAGE_OURFAULT;
-	if(packet_length < sizeof(struct Protocol_Msg)) return PR_GARBAGE;
+	if(packet_length < sizeof(struct Protocol_Msg)) return PR_WRONGPL;
 	struct Protocol_Msg * pmsg = (struct Protocol_Msg*) data;
 	char * ww = "WIZARDWEED";
 	if(memcmp(ww, &(pmsg->wizardweed_notchecksum), 10)) return PR_GARBAGE; //Someone, non-client, is sending us garbage.
