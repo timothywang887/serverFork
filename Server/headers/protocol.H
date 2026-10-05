@@ -31,6 +31,7 @@ enum MESSAGE_TYPE{
         SC_TOKENRSP,
 	SC_TOKENRSPWSP,
         SC_LOGINRQ,
+        SC_GSSJOINRSP,
 };
 struct __attribute__((packed)) Protocol_Msg{
         char wizardweed_notchecksum[10];
