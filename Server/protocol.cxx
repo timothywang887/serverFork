@@ -145,7 +145,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 			struct Protocol_Msg_CS_MAPJOINRQ * rq;
 		        rq = (struct Protocol_Msg_CS_MAPJOINRQ*)data;
 			if(pmsg->message_len-sizeof(struct Protocol_Msg) != sizeof(struct Protocol_Msg_CS_MAPJOINRQ)) return PR_ILLOGICAL;
-				
+			//gotta make a new game session. need  a manager for game sessions??	
 			break;
 		case CS_GSSJOINRQ: //Request to join game session.
 			break;
