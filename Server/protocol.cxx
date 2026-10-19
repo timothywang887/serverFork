@@ -1,4 +1,6 @@
 #include "headers/protocol.H"
+#include "headers/comm.H"
+#include <cassert>
 #include <stdio.h>
 bool verifyToken(ENCVAL_TEMP token, UserSession * ses_assoc){ //TODO
 	return true;
@@ -132,6 +134,7 @@ struct __attribute__((packed)) PositionOrientationVelocity{
 struct __attribute__((packed)) GameSessionData_PLAYER_INIT{
 	struct PositionOrientationVelocity pos;
 	struct GameSessionData_Player_Inventory inv;
+	uint8_t player_no;
 };
 struct __attribute__((packed)) Protocol_Msg_SC_MAPJOINRSP{
 	//Castle data
@@ -148,13 +151,48 @@ struct __attribute__((packed)) Protocol_Msg_SC_MAPJOINRSP{
 struct __attribute__((packed)) Protocol_Msg_SC_GSSJOINRSP{
 	//Map information, state, player locations/hp/etc, you
 };
-struct GameWorldState{
-	//I don't know what will be in here. Enemies? Players? Structures?
-	//This is used when a new player joins the session; we transmit it to them.
-	
+struct GameSessionData_Player{
+	struct PositionOrientationVelocity pos;
+	struct GameSessionData_Player_Inventory inv;
+	double hp;
+	bool hathshuffledoffthismortalcoil;
 };
-struct GameSession{
+struct GameWorldState{
+	struct GameSessionData_Player * players;
+	int player_count;
+};
+enum WORLDUPDATE_TYPE{
+	WORLDUPDATE_TYPE_playerPositionUpdate,
+	WORLDUPDATE_TYPE_playerHealthUpdate,
+	WORLDUPDATE_TYPE_playerJoinUpdate,
+};
+union __attribute__((packed)) GWU_U {
+	struct __attribute__((packed)) {
+		struct PositionOrientationVelocity pos;
+		uint8_t player_no;
+	} playerPositionUpdate;
+	struct __attribute__((packed)) {
+		double hp;
+		bool hathshuffledoffthismortalcoil;
+		uint8_t player_no;
+	} playerHealthUpdate;
+	struct GameSessionData_PLAYER_INIT playerJoinUpdate;
+};
+struct __attribute__((packed)) GWU_U_NT{
+	enum WORLDUPDATE_TYPE type;
+	union GWU_U update;
+};
+struct GameWorldUpdate{
+	//In this, we have various types of updates (position, player join, etc). We need to serialise these in a way that the client can understand, and transmit them n times per second.
+	enum WORLDUPDATE_TYPE type;
+	union GWU_U update;
+	struct GameWorldUpdate * next;
+};
+class GameSession{
 	//TODO: polling groups, separate thread per game session
+	public:
+	struct GameWorldUpdate * update;
+	int updlen;
 	struct GameWorldState world;
 	UserSession * sessions[255];
 	uint8_t max_players;
@@ -162,7 +200,88 @@ struct GameSession{
 	uint64_t map_id;
 	uint8_t difficulty;
 	uint64_t join_code;
+	void DistributeData();
+	bool DDlock;
+	bool dead;
+	GameSession(uint8_t max_players, enum MAP_PUBLICITY publicity, uint64_t map_id, uint8_t difficulty){
+		this->updlen = 0;
+		this->update = NULL;
+		this->world = GameWorldState();
+		this->max_players = max_players;
+		this->publicity = publicity;
+		this->map_id = map_id;
+		this->difficulty=difficulty;
+
+		//Now: join code, player inventory.
+	}
 };
+
+//For updates. Client may send us an update on e.g. position, and we need to check it and then distribute it in blocks.
+void GameSession::DistributeData(){
+	assert(!this->DDlock);
+	this->DDlock=1;
+	//construct it. This should rely on our updates as a constant from now on so that we don't get corruption, even if it might lead to latency.
+	int playersno = this->world.player_count;
+	struct GameWorldUpdate * k = this->update;
+	if(!k){	
+		assert(this->DDlock);
+		this->DDlock=0;
+		return;
+	}
+	struct GameWorldUpdate * k2 = k;
+	int ulen = 1;
+	while(k2->next){
+		k2 = k2->next;
+		ulen++;
+	}
+	struct GWU_U_NT * data = (struct GWU_U_NT*)malloc(ulen*sizeof(struct GWU_U_NT));
+	int i = 0;
+	while(k){
+		data[i].type = k->type;
+		data[i].update = k->update;
+		i++;
+		k = k->next;
+	}
+	//loop through every player and send them it
+	for(int i = 0; i<playersno; i++){
+		SERVER_INSTANCE.PH.sendCRQ(SC_WORLDUPDATE, getValidServerToken(), ulen*sizeof(struct GWU_U_NT), data, &(this->sessions[i]));
+	}
+	//TODO: add an ackpending to that session so we can add to the hsync counter later
+	DD_END:
+	assert(this->DDlock);
+	this->DDlock=0;
+}
+//Next up, handling of the session specific updates from the client and the manager in general. Manager in general:
+class GameSessionManager{
+	public:
+	GameSession ** sessions;
+	int sessions_length; //no of elements (1)
+	int sessions_size; //size in ptrs (1)
+	bool manager_lock; //TODO: semaphores.
+	void addSession(GameSession * k);
+	void rmSession();
+	void runUpdates();
+	void commitSuicide();
+};
+void GameSessionManager::addSession(GameSession * k){
+	assert(!this->manager_lock);
+	this->manager_lock = true;
+	if(this->sessions_length == this->sessions_size){
+		this->sessions_size*=2;
+		this->sessions = (GameSession**)realloc(this->sessions, this->sessions_size*sizeof(GameSession*));
+	}
+	this->sessions[this->sessions_length] = k;
+	this->sessions_length++;
+	assert(this->manager_lock);
+	this->manager_lock = false;
+}
+void GameSessionManager::runUpdates(){
+	int l = this->sessions_length;
+	for(int i = 0; i<l; i++){
+		if(this->sessions[i]->dead) continue;
+		this->sessions[i]->DistributeData();
+	}
+}
 enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_length, UserSession * ses_assoc){
 	printf("%li\n", sizeof(struct Protocol_Msg));
 	if(!data) return PR_GARBAGE_OURFAULT;
@@ -246,6 +365,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 		        rq = (struct Protocol_Msg_CS_MAPJOINRQ*)data;
 			if(pmsg->message_len-sizeof(struct Protocol_Msg) != sizeof(struct Protocol_Msg_CS_MAPJOINRQ)) return PR_ILLOGICAL;
 			//gotta make a new game session. need  a manager for game sessions??	
+
 			break;
 		case CS_GSSJOINRQ: //Request to join game session.
 			break;

@@ -26,12 +26,15 @@ enum MESSAGE_TYPE{
         CS_HSYNCRQ,
         CS_INVSYNCRQ,
         CS_ANIMATIONSYNCRQ,
+	CS_POSITIONUPDATE,
+	CS_ACK,
 
         SC_HSYNCRQ,
         SC_TOKENRSP,
 	SC_TOKENRSPWSP,
         SC_LOGINRQ,
         SC_GSSJOINRSP,
+	SC_WORLDUPDATE,
 };
 struct __attribute__((packed)) Protocol_Msg{
         char wizardweed_notchecksum[10];

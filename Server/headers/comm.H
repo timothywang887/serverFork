@@ -8,11 +8,11 @@ class Server{
 	public: 
 		int doLiterallyEverything(uint32_t port);
 		ISteamNetworkingSockets *m_pInterface;
+		ProtocolHandler PH;
 	private:
 		HSteamNetPollGroup m_hPollGroup;
 		HSteamListenSocket m_hListenSock;
 		SessionsManager Sessions;
-		ProtocolHandler PH;
 		void GNS_PollIncoming();
 		void GNS_SteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t * change);
 	//	static Server *s_pCallbackInstance;
