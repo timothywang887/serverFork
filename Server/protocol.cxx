@@ -94,31 +94,6 @@ struct __attribute__((packed)) CastleData_ROOM{
 			 * 	- Every room's origin cube can pathfind to one of the outside doors.
 			 * */
 };
-struct __attribute__((packed)) CastleData_CASTLE{
-	struct CastleData_ROOM rooms[5][5][4];
-	uint8_t banner; //Unused. Do this later.
-	uint8_t seed[9]; //Seed for worldgen
-	uint8_t difficulties; //bitmap of difficulties
-	//I have heard that enemy data is actually on the client.
-};
-struct __attribute__((packed)) Item_SkillTree{
-	uint8_t tree; //Unused. Do this later.
-};
-enum ITEM_WEAPONS {
-	ITEM_WEAPON_CHEESE_SANDWICH, //Temporary, an example. Client, once again, deals with it.
-};
-struct __attribute__((packed)) Item_WEAPON{
-	enum ITEM_WEAPONS type;
-	struct Item_SkillTree tree;
-};
-enum ITEM_RELICS{
-	ITEM_RELIC_CHEESE_SANDWICH, //Temporary, an example. Client deals with it.
-};
-struct __attribute__((packed)) GameSessionData_Player_Inventory{ //Temporary to the session
-	struct Item_WEAPON weapon;
-	enum ITEM_RELICS relic;
-	//Also three consumables in the loadout which appear somewhere in the map
-};
 struct __attribute__((packed)) PositionOrientationVelocity{
 	double x;
 	double y;
@@ -131,6 +106,35 @@ struct __attribute__((packed)) PositionOrientationVelocity{
 	double vy;
 	double vz;
 };
+struct __attribute__((packed)) CastleData_CASTLE{
+	struct CastleData_ROOM rooms[5][5][4];
+	uint8_t banner; //Unused. Do this later.
+	uint8_t seed[9]; //Seed for worldgen
+	uint8_t difficulties; //bitmap of difficulties
+	struct PositionOrientationVelocity spawnpos;
+	//I have heard that enemy data is actually on the client.
+};
+struct __attribute__((packed)) Item_SkillTree{
+	uint8_t unlocked[16];
+};
+enum ITEM_WEAPONS {
+	ITEM_WEAPON_CHEESE_SANDWICH, //Temporary, an example. Client, once again, deals with it.
+};
+struct __attribute__((packed)) Item_WEAPON{
+	enum ITEM_WEAPONS type;
+	struct Item_SkillTree tree;
+	uint8_t level;
+	double xp;
+};
+enum ITEM_RELICS{
+	ITEM_RELIC_CHEESE_SANDWICH, //Temporary, an example. Client deals with it.
+};
+struct __attribute__((packed)) GameSessionData_Player_Inventory{ //Temporary to the session
+	struct Item_WEAPON weapon;
+	enum ITEM_RELICS relic;
+	//Also three consumables in the loadout which appear somewhere in the map
+};
+
 struct __attribute__((packed)) GameSessionData_PLAYER_INIT{
 	struct PositionOrientationVelocity pos;
 	struct GameSessionData_Player_Inventory inv;
@@ -155,11 +159,22 @@ struct GameSessionData_Player{
 	struct PositionOrientationVelocity pos;
 	struct GameSessionData_Player_Inventory inv;
 	double hp;
+	double overhealth;
 	bool hathshuffledoffthismortalcoil;
 };
+struct GameSessionData_Player GameSessionData_Player_GetInit(UserSession * ses_assoc, struct PositionOrientationVelocity spawn){
+	struct GameSessionData_Player k;
+	k.pos = spawn;
+	k.hp = 100.0f;
+	k.overhealth = 0.0f; //TODO?
+	k.hathshuffledoffthismortalcoil = false;
+	k.inv = DB_GetLoadoutFromUserSession(ses_assoc);
+	return k;
+}
 struct GameWorldState{
 	struct GameSessionData_Player * players;
 	int player_count;
+	struct PositionOrientationVelocity spawn;
 };
 enum WORLDUPDATE_TYPE{
 	WORLDUPDATE_TYPE_playerPositionUpdate,
@@ -203,7 +218,7 @@ class GameSession{
 	void DistributeData();
 	bool DDlock;
 	bool dead;
-	GameSession(uint8_t max_players, enum MAP_PUBLICITY publicity, uint64_t map_id, uint8_t difficulty){
+	GameSession(uint8_t max_players, enum MAP_PUBLICITY publicity, uint64_t map_id, uint8_t difficulty, UserSession * ses_assoc, struct PositionOrientationVelocity spawn){
 		this->updlen = 0;
 		this->update = NULL;
 		this->world = GameWorldState();
@@ -211,8 +226,12 @@ class GameSession{
 		this->publicity = publicity;
 		this->map_id = map_id;
 		this->difficulty=difficulty;
-
-		//Now: join code, player inventory.
+		this->sessions[0] = ses_assoc;
+		this->world->players = (struct GameSessionData_Player*)calloc(max_players, sizeof(struct GameSessionData_Player));
+		this->world->players[0] = GameSessionData_Player_GetInit(ses_assoc);
+		this->world->spawn = spawn;
+		//Now: join code, player inventory?
+		//Join code is handled when this is passed to the GSSMAN. 
 	}
 };
 
