@@ -210,7 +210,6 @@ class GameSession{
 		this->world->players = (struct GameSessionData_Player*)calloc(max_players, sizeof(struct GameSessionData_Player));
 		this->world->players[0] = GameSessionData_Player_GetInit(ses_assoc);
 		this->world->spawn = spawn;
-		//Now: join code, player inventory?
 		//Join code is handled when this is passed to the GSSMAN. 
 	}
 };
@@ -257,11 +256,15 @@ class GameSessionManager{
 	int sessions_length; //no of elements (1)
 	int sessions_size; //size in ptrs (1)
 	bool manager_lock; //TODO: semaphores.
+	uint64_t genJC();
 	void addSession(GameSession * k);
 	void rmSession();
 	void runUpdates();
 	void commitSuicide();
 };
+uint64_t GameSessionManager::genJC(){
+	return 0;
+}
 void GameSessionManager::addSession(GameSession * k){
 	assert(!this->manager_lock);
 	this->manager_lock = true;
@@ -271,6 +274,7 @@ void GameSessionManager::addSession(GameSession * k){
 	}
 	this->sessions[this->sessions_length] = k;
 	this->sessions_length++;
+	k.join_code = this->genJC();
 	assert(this->manager_lock);
 	this->manager_lock = false;
 }
