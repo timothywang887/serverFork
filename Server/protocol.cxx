@@ -3,6 +3,7 @@
 #include "headers/clientdata.H"
 #include <cassert>
 #include <stdio.h>
+#include <ctime>
 bool verifyToken(ENCVAL_TEMP token, UserSession * ses_assoc){ //TODO
 	return true;
 }
@@ -207,9 +208,9 @@ class GameSession{
 		this->map_id = map_id;
 		this->difficulty=difficulty;
 		this->sessions[0] = ses_assoc;
-		this->world->players = (struct GameSessionData_Player*)calloc(max_players, sizeof(struct GameSessionData_Player));
-		this->world->players[0] = GameSessionData_Player_GetInit(ses_assoc);
-		this->world->spawn = spawn;
+		this->world.players = (struct GameSessionData_Player*)calloc(max_players, sizeof(struct GameSessionData_Player));
+		this->world.players[0] = GameSessionData_Player_GetInit(ses_assoc, spawn);
+		this->world.spawn = spawn;
 		//Join code is handled when this is passed to the GSSMAN. 
 	}
 };
@@ -261,9 +262,15 @@ class GameSessionManager{
 	void rmSession();
 	void runUpdates();
 	void commitSuicide();
+	GameSessionManager(){
+		srand((unsigned)time(0));
+	}
 };
 uint64_t GameSessionManager::genJC(){
-	return 0;
+	//We need a random value of JC so that people can't troll for sessions. 
+	return rand();
+
+	return 4;
 }
 void GameSessionManager::addSession(GameSession * k){
 	assert(!this->manager_lock);
@@ -274,7 +281,7 @@ void GameSessionManager::addSession(GameSession * k){
 	}
 	this->sessions[this->sessions_length] = k;
 	this->sessions_length++;
-	k.join_code = this->genJC();
+	k->join_code = this->genJC();
 	assert(this->manager_lock);
 	this->manager_lock = false;
 }
