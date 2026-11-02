@@ -5,11 +5,34 @@
 #include <iostream>
 #include "headers/clientdata.H"
 
+sql::mysql::MySQL_Driver *driver;
+sql::Connection *con;
+
+
+void GetSkillTreeInfo(void) {
+
+
+  try {
+    sql::Statement *stmt = con->createStatement();
+
+    sql::ResultSet *res = stmt->executeQuery("SELECT * FROM gameDB.player");
+
+    while(res->next()) {
+      std::cout << "ID: " << res->getInt("playerID");
+      std::cout << ", Name: " << res->getString("username") << std::endl;
+    }
+    std::cout << "did in fact do a thing AGAIN" << std::endl;
+  }
+
+  catch (sql::SQLException &e) {
+    std::cerr << "SQL ERROR: " << e.what() << std::endl;
+  }
+}
+
+
+
 
 int main(void) {
-
-  sql::mysql::MySQL_Driver *driver;
-  sql::Connection *con;
 
   try {
     driver = sql::mysql::get_driver_instance();
@@ -28,10 +51,6 @@ int main(void) {
     }
     std::cout << "did in fact do a thing" << std::endl;
 
-    delete res;
-    delete stmt;
-    delete con;
-
   }
 
   catch (sql::SQLException &e) {
@@ -39,14 +58,11 @@ int main(void) {
 
 
   }
+  
+  GetSkillTreeInfo();
 
 
 }
 
 
-void GetSkillTreeInfo() {
 
-
-
-
-}
