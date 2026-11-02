@@ -264,6 +264,10 @@ class GameSessionManager{
 	void commitSuicide();
 	GameSessionManager(){
 		srand((unsigned)time(0));
+		this->sessions =(GameSession**)calloc(sizeof(GameSession*),1);
+		this->sessions_length = 0;
+		this->sessions_size = 1;
+		this->manager_lock = 0;
 	}
 };
 uint64_t GameSessionManager::genJC(){
@@ -292,6 +296,8 @@ void GameSessionManager::runUpdates(){
 		this->sessions[i]->DistributeData();
 	}
 }
+//TODO: make the GSSM part of DLE
+GameSessionManager * GSSMAN = new GameSessionManager();
 enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_length, UserSession * ses_assoc){
 	printf("%li\n", sizeof(struct Protocol_Msg));
 	if(!data) return PR_GARBAGE_OURFAULT;
@@ -374,9 +380,26 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 			struct Protocol_Msg_CS_MAPJOINRQ * rq;
 		        rq = (struct Protocol_Msg_CS_MAPJOINRQ*)data;
 			if(pmsg->message_len-sizeof(struct Protocol_Msg) != sizeof(struct Protocol_Msg_CS_MAPJOINRQ)) return PR_ILLOGICAL;
-			//gotta make a new game session. need  a manager for game sessions??	
+			//Get the map...
+			struct Protocol_Msg_SC_MAPJOINRSP rsp;
+			bool r;
+		        r = DB_LOADCASTLEFROMMAPID(rq->map_id, &(rsp.castle));
+			if(!r){
+				return PR_ILLOGICAL;
+			}
+			//Get the difficulty (check against requested difficulties and return the closest one?)
+			rsp.difficulty = rq->difficulty_requested; //TODO.
+			GameSession * gs;
+			gs = new GameSession(rq->max_players, rq->publicity, rq->map_id, rsp.difficulty, ses_assoc, rsp.castle.spawnpos);
+			GSSMAN->addSession(gs);
+			rsp.join_code = gs->join_code;
+			//And the player init.
+			rsp.you.pos = rsp.castle.spawnpos;
+			rsp.you.player_no = 0;
+			rsp.you.inv = DB_GetLoadoutFromUserSession(ses_assoc);
 
-			break;
+			sendCRS(SC_MAPJOINRSP, getValidServerToken(), sizeof(struct Protocol_Msg_SC_MAPJOINRSP), pmsg->message_id_or_response_to,&rsp, ses_assoc);
+			return PR_SUCCESSFUL;
 		case CS_GSSJOINRQ: //Request to join game session.
 			break;
 		default:
