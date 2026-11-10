@@ -7,7 +7,7 @@
 #include "session.H"
 
 #define PROTOCOL_VERSION (0b000)
-typedef char ENCVAL_TEMP[2048];
+typedef char ENCVAL_TEMP[256];
 enum PARSING_RESULT{
 	PR_GARBAGE,
 	PR_WRONGPL,
