@@ -11,6 +11,7 @@ sql::mysql::MySQL_Driver *driver;
 sql::Connection *con;
 
 
+
 /*void GetSkillTreeInfo(UserSession * ses_assoc) {
 
   uint64_t id = ses_assoc->session_user.user_id;
@@ -31,7 +32,7 @@ sql::Connection *con;
 }
 */
 
-void Example(char* input) {
+void getidfromusername(char* input) {
 
     std::string searchTerm = input;
     std::string query = "SELECT * FROM player WHERE username = ?";
@@ -75,7 +76,7 @@ int main(void) {
   }
   char* input = "userthename";
   //GetSkillTreeInfo();
-  Example(input);
+  getidfromusername(input);
 
 
 }
