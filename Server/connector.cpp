@@ -5,7 +5,7 @@
 #include <cppconn/prepared_statement.h>
 #include <iostream>
 #include "headers/clientdata.H"
-//#include "headers/session.H"
+#include "headers/session.H"
 
 sql::mysql::MySQL_Driver *driver;
 sql::Connection *con;
@@ -53,7 +53,7 @@ int main(void) {
   try {
     driver = sql::mysql::get_driver_instance();
 
-    con = driver->connect("127.0.0.1:3306", "owner", "password");
+    con = driver->connect("127.0.0.1:3306", "anewell", "password");
 
     con->setSchema("gameDB");
 
