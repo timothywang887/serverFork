@@ -35,7 +35,8 @@ enum MESSAGE_TYPE{
         SC_LOGINRQ,
         SC_GSSJOINRSP,
 	SC_WORLDUPDATE,
-	SC_MAPJOINRSP
+	SC_MAPJOINRSP,
+	SC_REQUEST_INVALID,
 };
 struct __attribute__((packed)) Protocol_Msg{
         char wizardweed_notchecksum[10];
@@ -49,8 +50,8 @@ struct __attribute__((packed)) Protocol_Msg{
 class ProtocolHandler{
         public:
                 enum PARSING_RESULT handleCMSG(char * data, uint32_t packet_length, UserSession * ses_assoc);
-		void sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, char * data, UserSession * ses_assoc);
-                void sendCRS(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, uint64_t response_to, char * data, UserSession * ses_assoc);
+		void sendCRQ(enum MESSAGE_TYPE t, uint32_t message_len, char * data, UserSession * ses_assoc);
+                void sendCRS(enum MESSAGE_TYPE t, uint32_t message_len, uint64_t response_to, char * data, UserSession * ses_assoc);
         private:
                 uint64_t current_message_id = 0;    //luckily, we don't actually need to keep track of the CLIENT's message ids, as we either respond to them or we don't. we don't need to backreference them at any point; this saves us TONNES of memory
 };

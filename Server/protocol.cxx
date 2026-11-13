@@ -4,6 +4,7 @@
 #include <cassert>
 #include <stdio.h>
 #include <ctime>
+#include <mutex>
 bool verifyToken(ENCVAL_TEMP token, UserSession * ses_assoc){ //TODO
 	return true;
 }
@@ -133,10 +134,20 @@ struct __attribute__((packed)) Protocol_Msg_SC_MAPJOINRSP{
 	//No enemies; they are spawned dynamically.
 	//TODO: Item locations.
 };
-struct __attribute__((packed)) Protocol_Msg_SC_GSSJOINRSP{
-	//Map information, state, player locations/hp/etc, you
+struct __attribute__((packed)) Protocol_Msg_CS_GSSJOINRQ {
+	uint64_t join_code;
 };
-struct GameSessionData_Player{
+struct __attribute__((packed)) Protocol_Msg_SC_GSSJOINRSP{
+	//Map information, state, player locations/hp/etc, enemies, you
+	struct CastleData_CASTLE castle;
+	enum MAP_DIFFICULTY difficulty; //Differs from difficulty_requested if the map doesn't allow it.
+	uint64_t join_code;
+	struct GameSessionData_PLAYER_INIT you; 
+	uint8_t player_count_following; //This struct is followed by a bunch of struct GameSessionData_Player, in the count specified here.
+	uint16_t enemy_len_following;   //After the players, we have enemies, type unknown so far.
+
+};
+struct __attribute__((packed)) GameSessionData_Player{
 	struct PositionOrientationVelocity pos;
 	struct GameSessionData_Player_Inventory inv;
 	double hp;
@@ -194,10 +205,9 @@ class GameSession{
 	uint8_t max_players;
 	enum MAP_PUBLICITY publicity;
 	uint64_t map_id;
-	uint8_t difficulty;
+	enum MAP_DIFFICULTY difficulty;
 	uint64_t join_code;
 	void DistributeData();
-	bool DDlock;
 	bool dead;
 	GameSession(uint8_t max_players, enum MAP_PUBLICITY publicity, uint64_t map_id, uint8_t difficulty, UserSession * ses_assoc, struct PositionOrientationVelocity spawn){
 		this->updlen = 0;
@@ -211,20 +221,21 @@ class GameSession{
 		this->world.players = (struct GameSessionData_Player*)calloc(max_players, sizeof(struct GameSessionData_Player));
 		this->world.players[0] = GameSessionData_Player_GetInit(ses_assoc, spawn);
 		this->world.spawn = spawn;
+		this->DDlock = new std::mutex;
 		//Join code is handled when this is passed to the GSSMAN. 
 	}
+	std::mutex * DDlock;
+	private:
 };
 
 //For updates. Client may send us an update on e.g. position, and we need to check it and then distribute it in blocks.
 void GameSession::DistributeData(){
-	assert(!this->DDlock);
-	this->DDlock=1;
+	this->DDlock->lock();
 	//construct it. This should rely on our updates as a constant from now on so that we don't get corruption, even if it might lead to latency.
 	int playersno = this->world.player_count;
 	struct GameWorldUpdate * k = this->update;
 	if(!k){	
-		assert(this->DDlock);
-		this->DDlock=0;
+		this->DDlock->unlock();
 		return;
 	}
 	struct GameWorldUpdate * k2 = k;
@@ -243,33 +254,72 @@ void GameSession::DistributeData(){
 	}
 	//loop through every player and send them it
 	for(int i = 0; i<playersno; i++){
-		SERVER_INSTANCE.PH.sendCRQ(SC_WORLDUPDATE, getValidServerToken(), ulen*sizeof(struct GWU_U_NT), data, &(this->sessions[i]));
+		SERVER_INSTANCE.PH.sendCRQ(SC_WORLDUPDATE, ulen*sizeof(struct GWU_U_NT), (char*)data, &(this->sessions[i]));
 	}
 	//TODO: add an ackpending to that session so we can add to the hsync counter later
-	DD_END:
-	assert(this->DDlock);
-	this->DDlock=0;
+	this->DDlock->unlock();
 }
 //Next up, handling of the session specific updates from the client and the manager in general. Manager in general:
 class GameSessionManager{
 	public:
-	GameSession ** sessions;
-	int sessions_length; //no of elements (1)
-	int sessions_size; //size in ptrs (1)
-	bool manager_lock; //TODO: semaphores.
 	uint64_t genJC();
 	void addSession(GameSession * k);
 	void rmSession();
 	void runUpdates();
 	void commitSuicide();
+	void addPlayerToSession(uint64_t join_code, UserSession * ses_assoc, uint16_t response_to);
 	GameSessionManager(){
 		srand((unsigned)time(0));
 		this->sessions =(GameSession**)calloc(sizeof(GameSession*),1);
 		this->sessions_length = 0;
 		this->sessions_size = 1;
-		this->manager_lock = 0;
+		this->manager_lock = new std::mutex;
 	}
+	private:
+	std::mutex * manager_lock;
+	int sessions_size; //size in ptrs (1)
+	int sessions_length; //no of elements (1)
+	GameSession ** sessions;
 };
+void GameSessionManager::addPlayerToSession(uint64_t join_code, UserSession * ses_assoc, uint16_t response_to){
+	//Find session, add player, add pending event, send response back to user.
+	this->manager_lock->lock();
+	GameSession * k = NULL;
+	for(int i = 0; i<this->sessions_length; i++){
+		if(this->sessions[i]->join_code == join_code) {
+			k = this->sessions[i];
+			break;
+		}
+	}
+	if(!k || k->dead || k->world.player_count == k->max_players){
+		SERVER_INSTANCE.PH.sendCRS(SC_REQUEST_INVALID,0,response_to, NULL, ses_assoc);
+		this->manager_lock->unlock();
+		return;
+	}
+	k->DDlock->lock();
+	union GWU_U m;
+	m.playerJoinUpdate.pos=k->world.spawn;
+	m.playerJoinUpdate.inv=DB_GetLoadoutFromUserSession(ses_assoc);
+	m.playerJoinUpdate.player_no=k->world.player_count++;
+	this->appendUpdate(WORLDUPDATE_TYPE_playerJoinUpdate, m);
+
+	char * d = (char*)malloc(sizeof(struct Protocol_Msg_SC_GSSJOINRSP)+sizeof(struct GameSessionData_Player)*(k->world.player_count-1));
+	struct Protocol_Msg_SC_GSSJOINRSP*g=(struct Protocol_Msg_SC_GSSJOINRSP*)d;
+	DB_LOADCASTLEFROMMAPID(k->map_id, &(g->castle));
+	g->difficulty = k->difficulty;
+	g->join_code = k->join_code;
+	g->you.pos=k->world.spawn;
+	g->you.inv = DB_GetLoadoutFromUserSession(ses_assoc);
+	g->you.player_no = k->world.player_count-1;
+	g->player_count_following=k->world.player_count-1;
+	g->enemy_len_following=0;
+	char * dd = d+sizeof(struct Protocol_Msg_SC_GSSJOINRSP);
+	memcpy(dd, k->world.players, sizeof(struct GameSessionData_Player)*(k->world.player_count-1));
+	SERVER_INSTANCE.PH.sendCRS(SC_GSSJOINRSP,sizeof(struct Protocol_Msg_SC_GSSJOINRSP)+sizeof(struct GameSessionData_Player)*(k->world.player_count-1),response_to, d, ses_assoc);
+	free(d);
+	k->DDlock->unlock();
+	this->manager_lock->unlock();
+}
 uint64_t GameSessionManager::genJC(){
 	//We need a random value of JC so that people can't troll for sessions. 
 	return rand();
@@ -277,8 +327,7 @@ uint64_t GameSessionManager::genJC(){
 	return 4;
 }
 void GameSessionManager::addSession(GameSession * k){
-	assert(!this->manager_lock);
-	this->manager_lock = true;
+	this->manager_lock->lock();
 	if(this->sessions_length == this->sessions_size){
 		this->sessions_size*=2;
 		this->sessions = (GameSession**)realloc(this->sessions, this->sessions_size*sizeof(GameSession*));
@@ -286,8 +335,7 @@ void GameSessionManager::addSession(GameSession * k){
 	this->sessions[this->sessions_length] = k;
 	this->sessions_length++;
 	k->join_code = this->genJC();
-	assert(this->manager_lock);
-	this->manager_lock = false;
+	this->manager_lock->unlock();
 }
 void GameSessionManager::runUpdates(){
 	int l = this->sessions_length;
@@ -325,7 +373,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 				k.st = getTokenFromSemiperma(rq->spt);
 				uint32_t encrypted_length = 0;
 				char * encrypted = encryptSymmetric(k, sizeof(struct Protocol_Msg_SC_TOKENRSP), rq->sk, &encrypted_length);
-				sendCRS(SC_TOKENRSP, getValidServerToken(), encrypted_length, pmsg->message_id_or_response_to, encrypted, ses_assoc);
+				sendCRS(SC_TOKENRSP, encrypted_length, pmsg->message_id_or_response_to, encrypted, ses_assoc);
 				ses_assoc->session_user = getUserFromSemiperma(rq->spt);
 				ses_assoc->session_token = k.st;
 				free(encrypted);
@@ -333,7 +381,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 				return PR_SUCCESSFUL;
 			}else{
 				//Send them to the login screen.
-				sendCRS(SC_LOGINRQ, getValidServerToken(), 0, pmsg->message_id_or_response_to, NULL, ses_assoc);
+				sendCRS(SC_LOGINRQ, 0, pmsg->message_id_or_response_to, NULL, ses_assoc);
 			}
 			free(decrypted);
 #endif
@@ -356,7 +404,7 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 				ses_assoc->session_token = k.st;
 				uint32_t encrypted_length = 0;
 				char * encrypted = encryptSymmetric(k, sizeof(struct Protocol_Msg_SC_TOKENRSPWSP), rq->sk, &encrypted_length);
-				sendCRS(SC_TOKENRSPWSP, getValidServerToken(), encrypted_length, pmsg->message_id_or_response_to, encrypted, ses_assoc);
+				sendCRS(SC_TOKENRSPWSP, encrypted_length, pmsg->message_id_or_response_to, encrypted, ses_assoc);
 				free(encrypted);
 				free(decrypted);
 				return PR_SUCCESSFUL;
@@ -401,40 +449,54 @@ enum PARSING_RESULT ProtocolHandler::handleCMSG(char * data, uint32_t packet_len
 			sendCRS(SC_MAPJOINRSP, getValidServerToken(), sizeof(struct Protocol_Msg_SC_MAPJOINRSP), pmsg->message_id_or_response_to,&rsp, ses_assoc);
 			return PR_SUCCESSFUL;
 		case CS_GSSJOINRQ: //Request to join game session.
+			struct Protocol_Msg_CS_GSSJOINRQ * rq1;
+			rq1 = (struct Protocol_Msg_CS_GSSJOINRQ*)data;
+			if(pmsg->message_len-sizeof(struct Protocol_Msg) != sizeof(struct Protocol_Msg_CS_GSSJOINRQ)) return PR_ILLOGICAL;
+
+			GSSMAN->addPlayerToSession(rq1->join_code, ses_assoc, pmsg->message_id_or_response_to);
 			break;
 		default:
 			return PR_ILLOGICAL;	
 	}
 	return PR_SUCCESSFUL;
 }
-void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, char * data, UserSession * ses_assoc){
+void ProtocolHandler::sendCRQ(enum MESSAGE_TYPE t, uint32_t message_len, char * data, UserSession * ses_assoc){
 	struct Protocol_Msg pmsg;
 	char * ww = "WIZARDWEED";
+	ENCVAL_TEMP sctoken = GetValidServerToken(); //IMPORTANT: This function does not get our key. It gets a unix timestamp signed with the server key.
 	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION | 0b1000;
 	memcpy(pmsg.tokening,sctoken, sizeof(ENCVAL_TEMP));
 	pmsg.type = t;
 	pmsg.message_id_or_response_to=current_message_id++;
-	char * d = (char*)(malloc(pmsg.message_len));
-	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
-	memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
-	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
-	free(d);
+	if(message_len && data){
+		char * d = (char*)(malloc(pmsg.message_len));
+		memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
+		memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
+		ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
+		free(d);
+	}else{
+		ses_assoc->sendMessageTo((char*)(&pmsg), pmsg.message_len, k_nSteamNetworkingSend_Reliable);
+	}
 }
-void ProtocolHandler::sendCRS(enum MESSAGE_TYPE t, ENCVAL_TEMP sctoken, uint32_t message_len, uint64_t response_to, char * data, UserSession * ses_assoc){
+void ProtocolHandler::sendCRS(enum MESSAGE_TYPE t, uint32_t message_len, uint64_t response_to, char * data, UserSession * ses_assoc){
 	struct Protocol_Msg pmsg;
 	char * ww = "WIZARDWEED";
+	ENCVAL_TEMP sctoken = GetValidServerToken();
 	memcpy(pmsg.wizardweed_notchecksum,ww,10);
 	pmsg.message_len=message_len+sizeof(struct Protocol_Msg);
 	pmsg.rqrspandpvr=PROTOCOL_VERSION & 0b111;
 	memcpy(pmsg.tokening,sctoken, sizeof(ENCVAL_TEMP));
 	pmsg.type = t;
 	pmsg.message_id_or_response_to=response_to;
-	char * d = (char*)malloc(pmsg.message_len);
-	memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
-	memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
-	ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
-	free(d);
-
+	if(message_len && data){
+		char * d = (char*)(malloc(pmsg.message_len));
+		memcpy(d, &pmsg, sizeof(struct Protocol_Msg));
+		memcpy(d+sizeof(struct Protocol_Msg), data, pmsg.message_len);
+		ses_assoc->sendMessageTo(d, pmsg.message_len, k_nSteamNetworkingSend_Reliable); //TODO.
+		free(d);
+	}else{
+		ses_assoc->sendMessageTo((char*)(&pmsg), pmsg.message_len, k_nSteamNetworkingSend_Reliable);
+	}
 }
