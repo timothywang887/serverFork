@@ -26,7 +26,7 @@ int getidfromusername(char* input) {
     return 0;
 }
 
-GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession ses) {
+GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession * ses) {
 
         //build the struct to send
         ITEM_RELICS ir { ITEM_RELIC_CHEESE_SANDWICH, };
@@ -44,7 +44,7 @@ GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession ses) {
         send.weapon = wpon;
         send.relic = ir;
 
-	std::string searchTerm = ses.session_user.username;
+	std::string searchTerm = ses->session_user.username;
 	std::string query = "SELECT * FROM player WHERE username = ?";
 	sql::PreparedStatement* stmt = con->prepareStatement(query);
 	stmt->setString(1, searchTerm);
@@ -54,9 +54,44 @@ GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession ses) {
 	    std::cout << "NEW FUNCTION LONG FUNCTIOPN THING: " << res->getInt("playerID");
 	}
 
-	std::cout << "WPON LEVEL: " << send.weapon.level << std::endl;
 	return send;
 }
+
+
+
+//notes: return either true/false for if it worked, set castle struct from db
+bool DB_LOADCASTLEFROMMAPID(int map_id, struct CastleData_CASTLE * castle) {
+
+	int searchTerm = map_id;
+        std::string query = "SELECT * FROM castleItems WHERE castleID = ?";
+        sql::PreparedStatement* stmt = con->prepareStatement(query);
+        stmt->setInt(1, searchTerm);
+        sql::ResultSet *res = stmt->executeQuery();
+
+        while(res->next()) {
+            std::cout << "roomid: " << res->getInt("roomID");
+	    std::cout << "unique id:" << res->getInt("uniqueidentifier");
+        }
+
+
+	return false;
+
+
+}
+
+
+void runexamplecastlestuff() {
+
+ struct CastleData_CASTLE cData;
+
+ int exMapId = 1;
+
+ bool worked = DB_LOADCASTLEFROMMAPID(exMapId, &cData);
+ if (worked != 0) { 
+   std::cout << "worked";
+ }
+}
+
 
 
 
@@ -70,8 +105,8 @@ User utest;
 utest.user_id = 3302;
 utest.username = "userthename";
 
-UserSession ustest;
-ustest.session_user = utest;
+UserSession ses;
+ses.session_user = utest;
 
 //CAN DELETE THIS LATER, EXAMPLE DATA ^^^^^^^^
 
@@ -109,9 +144,9 @@ ustest.session_user = utest;
 
   std::cout << "thisworks?: " << plidtemp << std::endl;
 
-  DB_GetLoadoutFromUserSession(ustest);
+  DB_GetLoadoutFromUserSession(&ses);
 
-
+  //runexamplecastlestuff();
 }
 
 
