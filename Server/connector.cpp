@@ -26,6 +26,7 @@ int getidfromusername(char* input) {
     return 0;
 }
 
+//NOT READY FOR USE
 GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession * ses) {
 
         //build the struct to send
@@ -60,6 +61,7 @@ GameSessionData_Player_Inventory DB_GetLoadoutFromUserSession(UserSession * ses)
 
 
 //notes: return either true/false for if it worked, set castle struct from db
+//NOT READY FOR USE
 bool DB_LOADCASTLEFROMMAPID(int map_id, struct CastleData_CASTLE * castle) {
 
 	int searchTerm = map_id;
@@ -102,8 +104,8 @@ int main(void) {
 //EXAMPLE DATA FOR TESTING \/\/\/\/\/\/
 
 User utest;
-utest.user_id = 3302;
-utest.username = "userthename";
+utest.user_id = 1;
+utest.username = "ayden";
 
 UserSession ses;
 ses.session_user = utest;
@@ -146,7 +148,7 @@ ses.session_user = utest;
 
   DB_GetLoadoutFromUserSession(&ses);
 
-  //runexamplecastlestuff();
+  runexamplecastlestuff();
 }
 
 
