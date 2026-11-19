@@ -113,6 +113,7 @@ ses.session_user = utest;
 //CAN DELETE THIS LATER, EXAMPLE DATA ^^^^^^^^
 
 
+std::cout << "SIZE OF THING" << sizeof(struct CastleData_CASTLE);
   try {
     driver = sql::mysql::get_driver_instance();
 
