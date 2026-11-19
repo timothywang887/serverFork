@@ -5,9 +5,9 @@
 #include <list>
 #include <string>
 #include "session.H"
+#include "encryption.H"
 
 #define PROTOCOL_VERSION (0b000)
-typedef char ENCVAL_TEMP[256];
 enum PARSING_RESULT{
 	PR_GARBAGE,
 	PR_WRONGPL,
@@ -38,11 +38,16 @@ enum MESSAGE_TYPE{
 	SC_MAPJOINRSP,
 	SC_REQUEST_INVALID,
 };
+union TOKENING {
+	ENCRYPTION_UNIX_TIMESTAMP_IP_SIGNED servertoclient;
+	ENCRYPTION_UNIX_TIMESTAMP_IP_ENCRYPTED_SYMMETRIC clienttoserver;
+	ENCRYPTION_USERNAME_PASSWORD_UNIX_TIMESTAMP_IP_SYMMETRIC_KEY_ENCRYPTED_ASYMMETRIC clienttoserverinit;
+};
 struct __attribute__((packed)) Protocol_Msg{
         char wizardweed_notchecksum[10];
         uint8_t rqrspandpvr; //0b0 rq/rsp followed by 0b000 proto ver. Top half reserved.
         uint32_t message_len;
-        ENCVAL_TEMP tokening;
+        union TOKENING tokening;
         enum MESSAGE_TYPE type;
         uint64_t message_id_or_response_to;
         //Sadly, we're not allowed to place variable-length data within a struct. After this struct, the data follows.
