@@ -5,11 +5,11 @@ typedef ENCRYPTION_ASYMMETRIC_KEY char[256];
 typedef ENCRYPTION_UNIX_TIMESTAMP_IP_SIGNED char[256]; //8 bytes plus a signature. Length is temporary.
 typedef ENCRYPTION_UNIX_TIMESTAMP_IP_ENCRYPTED_SYMMETRIC char[256]; //8 bytes, encrypted with symmetric key. Length is temporary.
 typedef ENCRYPTION_USERNAME_PASSWORD_UNIX_TIMESTAMP_IP_SYMMETRIC_KEY_ENCRYPTED_ASYMMETRIC char[296]; //128 bytes + 128 bytes + 8 bytes + 32 bytes, encrypted with an asymmetric key. Length is temporary.
-char * unencryptSPK(const char* const data, uint32_t data_length, uint32_t* lenres);
+char * unencryptSPK(const char* const data, uint32_t data_length, uint32_t* lenres);//256 bytes length of ciphertext (full length of RSA key)
 
 //char* encryptSPK(const char* const AES, uint32_t AES_length, EVP_PKEY* PKEY, uint32_t* lenres);
 
-char * encryptSymmetric(const char * const data, uint32_t data_length, ENCVAL_SYMMETRIC_KEY key, uint32_t * lenres);
+char * encryptSymmetric(const char * const data, uint32_t data_length, ENCVAL_SYMMETRIC_KEY key, uint32_t * lenres);//PKCS#17 padding rounds up to the next 16 byte block + a set 16 byte iv
 char* decryptSymmetric(const char* const encrypted_data, uint32_t encrypted_data_length, ENCVAL_SYMMETRIC_KEY key, uint32_t* lenres);
 
 #endif
