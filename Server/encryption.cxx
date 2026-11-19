@@ -20,6 +20,10 @@ char* encryptSPK(const char* const AES, uint32_t AES_length, EVP_PKEY* PKEY, uin
 		EVP_PKEY_CTX_free(ctx);
 		throw std::runtime_error("ERROR: CTX FAILED");
 	}
+	if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING)<=0 || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256())<=0 || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256())<=0)
+	{
+		throw std::runtime_error("ERROR: PADDING FAILED");
+	}
 	size_t encrypted_length = 0;
 	if (EVP_PKEY_encrypt(ctx, nullptr, &encrypted_length, AES, AES_length)<=0){
 		EVP_PKEY_CTX_free(ctx);
@@ -62,7 +66,10 @@ char * unencryptSPK(const char* const data, uint32_t data_length, uint32_t* lenr
 		EVP_PKEY_free(key);
         throw std::runtime_error("ERROR: CTX FAILED");
     }
-
+	if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING)<=0 || EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256())<=0 || EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256())<=0)
+	{
+		throw std::runtime_error("ERROR: PADDING FAILED");
+	}
 	size_t decrypted_length = 0;
 	if (EVP_PKEY_decrypt(ctx, nullptr, &decrypted_length, data, data_length)<=0){
 		EVP_PKEY_free(key);
